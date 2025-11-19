@@ -32,6 +32,18 @@ jobs:
           echo "Testing Phase 1: Package Manager Installation"
           ./scripts/install_package_manager.sh || echo "Phase 1 completed (may have warnings)"
       
+      - name: Verify Phase 1 - Homebrew Installed
+        if: matrix.phase == 1
+        run: |
+          echo "Verifying Homebrew installation..."
+          if command -v brew &> /dev/null; then
+            echo "✓ Homebrew is installed: $(which brew)"
+            echo "✓ Homebrew version: $(brew --version | head -n1)"
+          else
+            echo "✗ Homebrew is NOT installed"
+            exit 1
+          fi
+      
       - name: Phase 2 - Essential Tools
         if: matrix.phase == 2
         run: |
@@ -43,13 +55,82 @@ jobs:
             eval "$(/opt/homebrew/bin/brew shellenv)" || eval "$(/usr/local/bin/brew shellenv)" || true
           fi
           # Test with config file (non-interactive)
-          echo "n" | ./scripts/install_essential_tools.sh || echo "Phase 2 completed (may have warnings)"
+          echo "y" | ./scripts/install_essential_tools.sh || echo "Phase 2 completed (may have warnings)"
+      
+      - name: Verify Phase 2 - Essential Tools Installed
+        if: matrix.phase == 2
+        run: |
+          echo "Verifying essential tools installation..."
+          # Add Homebrew to PATH if needed
+          if [ -f "/opt/homebrew/bin/brew" ]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+          elif [ -f "/usr/local/bin/brew" ]; then
+            eval "$(/usr/local/bin/brew shellenv)"
+          fi
+          
+          TOOLS=("git" "zsh" "vim" "curl" "wget" "jq" "tree" "htop" "ripgrep" "yadm")
+          FAILED=0
+          for tool in "${TOOLS[@]}"; do
+            if command -v "$tool" &> /dev/null; then
+              echo "✓ $tool is installed: $(which $tool)"
+            else
+              echo "✗ $tool is NOT installed"
+              FAILED=1
+            fi
+          done
+          
+          # Check Homebrew packages
+          if command -v brew &> /dev/null; then
+            echo "Checking Homebrew packages..."
+            BREW_TOOLS=("git" "zsh" "vim" "curl" "wget" "jq" "tree" "htop" "ripgrep" "fd" "bat" "exa" "yadm")
+            for tool in "${BREW_TOOLS[@]}"; do
+              if brew list "$tool" &> /dev/null 2>&1; then
+                echo "✓ $tool is installed via Homebrew"
+              else
+                echo "⚠ $tool is not installed via Homebrew (may be system tool)"
+              fi
+            done
+          fi
+          
+          if [ $FAILED -eq 1 ]; then
+            exit 1
+          fi
       
       - name: Phase 3 - Shell Setup
         if: matrix.phase == 3
         run: |
           echo "Testing Phase 3: Shell Setup"
-          echo "n" | ./scripts/setup_shell.sh || echo "Phase 3 completed (may have warnings)"
+          # Install Homebrew if needed
+          if ! command -v brew &> /dev/null; then
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
+            eval "$(/opt/homebrew/bin/brew shellenv)" || eval "$(/usr/local/bin/brew shellenv)" || true
+          fi
+          echo "y" | ./scripts/setup_shell.sh || echo "Phase 3 completed (may have warnings)"
+      
+      - name: Verify Phase 3 - Shell Setup
+        if: matrix.phase == 3
+        run: |
+          echo "Verifying shell setup..."
+          
+          # Check zsh is installed
+          if command -v zsh &> /dev/null; then
+            echo "✓ zsh is installed: $(which zsh)"
+            echo "✓ zsh version: $(zsh --version)"
+          else
+            echo "✗ zsh is NOT installed"
+            exit 1
+          fi
+          
+          # Check Oh My Zsh
+          if [ -d "$HOME/.oh-my-zsh" ]; then
+            echo "✓ Oh My Zsh is installed"
+          else
+            echo "⚠ Oh My Zsh is NOT installed (may have been skipped)"
+          fi
+          
+          # Check default shell (may not be changed in CI)
+          CURRENT_SHELL=$(echo $SHELL)
+          echo "Current shell: $CURRENT_SHELL"
       
       - name: Phase 4 - Development Environments
         if: matrix.phase == 4
@@ -60,14 +141,151 @@ jobs:
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
             eval "$(/opt/homebrew/bin/brew shellenv)" || eval "$(/usr/local/bin/brew shellenv)" || true
           fi
-          echo "n" | ./scripts/setup_python.sh || echo "Python setup skipped"
-          echo "n" | ./scripts/setup_nodejs.sh || echo "Node.js setup skipped"
+          echo "y" | ./scripts/setup_python.sh || echo "Python setup skipped"
+          echo "y" | ./scripts/setup_nodejs.sh || echo "Node.js setup skipped"
+      
+      - name: Verify Phase 4 - Development Environments
+        if: matrix.phase == 4
+        run: |
+          echo "Verifying development environments..."
+          
+          # Verify Python
+          if command -v python3 &> /dev/null; then
+            echo "✓ Python3 is installed: $(which python3)"
+            echo "✓ Python3 version: $(python3 --version)"
+            
+            # Check pip packages
+            if command -v pip3 &> /dev/null; then
+              echo "✓ pip3 is installed: $(which pip3)"
+              PYTHON_PACKAGES=("ipython" "jupyter" "black" "flake8" "pytest" "virtualenv")
+              for pkg in "${PYTHON_PACKAGES[@]}"; do
+                if pip3 list --user 2>/dev/null | grep -q "^$pkg "; then
+                  echo "✓ Python package $pkg is installed"
+                else
+                  echo "⚠ Python package $pkg is NOT installed"
+                fi
+              done
+            else
+              echo "⚠ pip3 is NOT installed"
+            fi
+          else
+            echo "✗ Python3 is NOT installed"
+          fi
+          
+          # Verify Node.js
+          if command -v node &> /dev/null; then
+            echo "✓ Node.js is installed: $(which node)"
+            echo "✓ Node.js version: $(node --version)"
+            
+            if command -v npm &> /dev/null; then
+              echo "✓ npm is installed: $(which npm)"
+              echo "✓ npm version: $(npm --version)"
+              
+              # Check npm packages
+              NPM_PACKAGES=("yarn" "typescript" "eslint" "prettier")
+              for pkg in "${NPM_PACKAGES[@]}"; do
+                if npm list -g "$pkg" &> /dev/null 2>&1; then
+                  echo "✓ npm package $pkg is installed globally"
+                else
+                  echo "⚠ npm package $pkg is NOT installed globally"
+                fi
+              done
+            else
+              echo "⚠ npm is NOT installed"
+            fi
+          else
+            echo "⚠ Node.js is NOT installed (may have been skipped)"
+          fi
       
       - name: Phase 5 - Conda/Mamba Setup
         if: matrix.phase == 5
         run: |
           echo "Testing Phase 5: Conda/Mamba Setup"
-          echo "n" | ./scripts/setup_conda.sh || echo "Conda setup skipped"
+          # Install Homebrew if needed
+          if ! command -v brew &> /dev/null; then
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
+            eval "$(/opt/homebrew/bin/brew shellenv)" || eval "$(/usr/local/bin/brew shellenv)" || true
+          fi
+          echo "y" | ./scripts/setup_conda.sh || echo "Conda setup skipped"
+      
+      - name: Verify Phase 5 - Conda Environment
+        if: matrix.phase == 5
+        run: |
+          echo "Verifying conda/mamba setup..."
+          
+          # Check for conda/mamba
+          if command -v conda &> /dev/null; then
+            echo "✓ conda is installed: $(which conda)"
+            echo "✓ conda version: $(conda --version)"
+            
+            # Initialize conda if needed
+            if [ -f "$HOME/mambaforge/etc/profile.d/conda.sh" ]; then
+              source "$HOME/mambaforge/etc/profile.d/conda.sh"
+            elif [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+              source "$HOME/miniconda3/etc/profile.d/conda.sh"
+            fi
+            
+            # Check for py3 environment
+            if conda env list | grep -q "^py3 "; then
+              echo "✓ Conda environment 'py3' exists"
+              
+              # Activate and check packages
+              conda activate py3 || true
+              CONDA_PACKAGES=("python" "numpy" "pandas" "jupyter")
+              for pkg in "${CONDA_PACKAGES[@]}"; do
+                if conda list -n py3 | grep -q "^$pkg "; then
+                  echo "✓ Conda package $pkg is installed in py3"
+                else
+                  echo "⚠ Conda package $pkg is NOT installed in py3"
+                fi
+              done
+            else
+              echo "✗ Conda environment 'py3' does NOT exist"
+              exit 1
+            fi
+          elif command -v mamba &> /dev/null; then
+            echo "✓ mamba is installed: $(which mamba)"
+            echo "✓ mamba version: $(mamba --version)"
+          else
+            echo "⚠ conda/mamba is NOT installed (may have been skipped)"
+          fi
+      
+      - name: Verify yadm and Dotfiles
+        if: matrix.phase == 2 || matrix.phase == 3
+        run: |
+          echo "Verifying yadm setup..."
+          
+          if command -v yadm &> /dev/null; then
+            echo "✓ yadm is installed: $(which yadm)"
+            echo "✓ yadm version: $(yadm --version)"
+            
+            # Check if yadm repo exists
+            if yadm rev-parse --git-dir &> /dev/null; then
+              echo "✓ yadm repository is initialized"
+              
+              # Check for remote
+              REMOTE=$(yadm remote get-url origin 2>/dev/null || echo "")
+              if [ -n "$REMOTE" ]; then
+                echo "✓ yadm remote is set: $REMOTE"
+              else
+                echo "⚠ yadm remote is NOT set"
+              fi
+              
+              # Check for common dotfiles
+              DOTFILES=(".zshrc" ".gitconfig" ".config")
+              for dotfile in "${DOTFILES[@]}"; do
+                if [ -f "$HOME/$dotfile" ] || [ -d "$HOME/$dotfile" ]; then
+                  echo "✓ Dotfile $dotfile exists"
+                else
+                  echo "⚠ Dotfile $dotfile does NOT exist (may not be cloned yet)"
+                fi
+              done
+            else
+              echo "⚠ yadm repository is NOT initialized"
+            fi
+          else
+            echo "⚠ yadm is NOT installed"
+          fi
       
       - name: Verify Scripts Exist
         run: |
@@ -108,30 +326,234 @@ jobs:
           echo "Testing Phase 1: Package Manager Detection"
           ./scripts/install_package_manager.sh || echo "Phase 1 completed (detection only)"
       
+      - name: Verify Phase 1 - Package Manager
+        if: matrix.phase == 1
+        run: |
+          echo "Verifying package manager detection..."
+          if command -v apt-get &> /dev/null; then
+            echo "✓ apt-get detected: $(which apt-get)"
+          elif command -v yum &> /dev/null; then
+            echo "✓ yum detected: $(which yum)"
+          elif command -v dnf &> /dev/null; then
+            echo "✓ dnf detected: $(which dnf)"
+          elif command -v pacman &> /dev/null; then
+            echo "✓ pacman detected: $(which pacman)"
+          elif command -v zypper &> /dev/null; then
+            echo "✓ zypper detected: $(which zypper)"
+          else
+            echo "⚠ No known package manager detected"
+          fi
+      
       - name: Phase 2 - Essential Tools
         if: matrix.phase == 2
         run: |
           echo "Testing Phase 2: Essential Tools Installation"
-          echo "n" | ./scripts/install_essential_tools.sh || echo "Phase 2 completed (may have warnings)"
+          echo "y" | ./scripts/install_essential_tools.sh || echo "Phase 2 completed (may have warnings)"
+      
+      - name: Verify Phase 2 - Essential Tools Installed
+        if: matrix.phase == 2
+        run: |
+          echo "Verifying essential tools installation..."
+          
+          TOOLS=("git" "zsh" "vim" "curl" "wget" "jq" "tree" "htop" "yadm")
+          FAILED=0
+          for tool in "${TOOLS[@]}"; do
+            if command -v "$tool" &> /dev/null; then
+              echo "✓ $tool is installed: $(which $tool)"
+            else
+              echo "✗ $tool is NOT installed"
+              FAILED=1
+            fi
+          done
+          
+          # Check for ripgrep, fd, bat, exa (may have different names on Linux)
+          if command -v rg &> /dev/null || command -v ripgrep &> /dev/null; then
+            echo "✓ ripgrep is installed"
+          else
+            echo "⚠ ripgrep is NOT installed"
+          fi
+          
+          if command -v fdfind &> /dev/null || command -v fd &> /dev/null; then
+            echo "✓ fd is installed"
+          else
+            echo "⚠ fd is NOT installed"
+          fi
+          
+          if [ $FAILED -eq 1 ]; then
+            exit 1
+          fi
       
       - name: Phase 3 - Shell Setup
         if: matrix.phase == 3
         run: |
           echo "Testing Phase 3: Shell Setup"
-          echo "n" | ./scripts/setup_shell.sh || echo "Phase 3 completed (may have warnings)"
+          echo "y" | ./scripts/setup_shell.sh || echo "Phase 3 completed (may have warnings)"
+      
+      - name: Verify Phase 3 - Shell Setup
+        if: matrix.phase == 3
+        run: |
+          echo "Verifying shell setup..."
+          
+          # Check zsh is installed
+          if command -v zsh &> /dev/null; then
+            echo "✓ zsh is installed: $(which zsh)"
+            echo "✓ zsh version: $(zsh --version)"
+          else
+            echo "✗ zsh is NOT installed"
+            exit 1
+          fi
+          
+          # Check Oh My Zsh
+          if [ -d "$HOME/.oh-my-zsh" ]; then
+            echo "✓ Oh My Zsh is installed"
+          else
+            echo "⚠ Oh My Zsh is NOT installed (may have been skipped)"
+          fi
       
       - name: Phase 4 - Development Environments
         if: matrix.phase == 4
         run: |
           echo "Testing Phase 4: Development Environments"
-          echo "n" | ./scripts/setup_python.sh || echo "Python setup skipped"
-          echo "n" | ./scripts/setup_nodejs.sh || echo "Node.js setup skipped"
+          echo "y" | ./scripts/setup_python.sh || echo "Python setup skipped"
+          echo "y" | ./scripts/setup_nodejs.sh || echo "Node.js setup skipped"
+      
+      - name: Verify Phase 4 - Development Environments
+        if: matrix.phase == 4
+        run: |
+          echo "Verifying development environments..."
+          
+          # Verify Python
+          if command -v python3 &> /dev/null; then
+            echo "✓ Python3 is installed: $(which python3)"
+            echo "✓ Python3 version: $(python3 --version)"
+            
+            # Check pip packages
+            if command -v pip3 &> /dev/null; then
+              echo "✓ pip3 is installed: $(which pip3)"
+              PYTHON_PACKAGES=("ipython" "jupyter" "black" "flake8" "pytest" "virtualenv")
+              for pkg in "${PYTHON_PACKAGES[@]}"; do
+                if pip3 list --user 2>/dev/null | grep -q "^$pkg "; then
+                  echo "✓ Python package $pkg is installed"
+                else
+                  echo "⚠ Python package $pkg is NOT installed"
+                fi
+              done
+            else
+              echo "⚠ pip3 is NOT installed"
+            fi
+          else
+            echo "⚠ Python3 is NOT installed (may have been skipped)"
+          fi
+          
+          # Verify Node.js
+          if command -v node &> /dev/null; then
+            echo "✓ Node.js is installed: $(which node)"
+            echo "✓ Node.js version: $(node --version)"
+            
+            if command -v npm &> /dev/null; then
+              echo "✓ npm is installed: $(which npm)"
+              echo "✓ npm version: $(npm --version)"
+              
+              # Check npm packages
+              NPM_PACKAGES=("yarn" "typescript" "eslint" "prettier")
+              for pkg in "${NPM_PACKAGES[@]}"; do
+                if npm list -g "$pkg" &> /dev/null 2>&1; then
+                  echo "✓ npm package $pkg is installed globally"
+                else
+                  echo "⚠ npm package $pkg is NOT installed globally"
+                fi
+              done
+            else
+              echo "⚠ npm is NOT installed"
+            fi
+          else
+            echo "⚠ Node.js is NOT installed (may have been skipped)"
+          fi
       
       - name: Phase 5 - Conda/Mamba Setup
         if: matrix.phase == 5
         run: |
           echo "Testing Phase 5: Conda/Mamba Setup"
-          echo "n" | ./scripts/setup_conda.sh || echo "Conda setup skipped"
+          echo "y" | ./scripts/setup_conda.sh || echo "Conda setup skipped"
+      
+      - name: Verify Phase 5 - Conda Environment
+        if: matrix.phase == 5
+        run: |
+          echo "Verifying conda/mamba setup..."
+          
+          # Check for conda/mamba
+          if command -v conda &> /dev/null; then
+            echo "✓ conda is installed: $(which conda)"
+            echo "✓ conda version: $(conda --version)"
+            
+            # Initialize conda if needed
+            if [ -f "$HOME/mambaforge/etc/profile.d/conda.sh" ]; then
+              source "$HOME/mambaforge/etc/profile.d/conda.sh"
+            elif [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+              source "$HOME/miniconda3/etc/profile.d/conda.sh"
+            fi
+            
+            # Check for py3 environment
+            if conda env list | grep -q "^py3 "; then
+              echo "✓ Conda environment 'py3' exists"
+              
+              # Activate and check packages
+              conda activate py3 || true
+              CONDA_PACKAGES=("python" "numpy" "pandas" "jupyter")
+              for pkg in "${CONDA_PACKAGES[@]}"; do
+                if conda list -n py3 | grep -q "^$pkg "; then
+                  echo "✓ Conda package $pkg is installed in py3"
+                else
+                  echo "⚠ Conda package $pkg is NOT installed in py3"
+                fi
+              done
+            else
+              echo "✗ Conda environment 'py3' does NOT exist"
+              exit 1
+            fi
+          elif command -v mamba &> /dev/null; then
+            echo "✓ mamba is installed: $(which mamba)"
+            echo "✓ mamba version: $(mamba --version)"
+          else
+            echo "⚠ conda/mamba is NOT installed (may have been skipped)"
+          fi
+      
+      - name: Verify yadm and Dotfiles
+        if: matrix.phase == 2 || matrix.phase == 3
+        run: |
+          echo "Verifying yadm setup..."
+          
+          if command -v yadm &> /dev/null; then
+            echo "✓ yadm is installed: $(which yadm)"
+            echo "✓ yadm version: $(yadm --version)"
+            
+            # Check if yadm repo exists
+            if yadm rev-parse --git-dir &> /dev/null; then
+              echo "✓ yadm repository is initialized"
+              
+              # Check for remote
+              REMOTE=$(yadm remote get-url origin 2>/dev/null || echo "")
+              if [ -n "$REMOTE" ]; then
+                echo "✓ yadm remote is set: $REMOTE"
+              else
+                echo "⚠ yadm remote is NOT set"
+              fi
+              
+              # Check for common dotfiles
+              DOTFILES=(".zshrc" ".gitconfig" ".config")
+              for dotfile in "${DOTFILES[@]}"; do
+                if [ -f "$HOME/$dotfile" ] || [ -d "$HOME/$dotfile" ]; then
+                  echo "✓ Dotfile $dotfile exists"
+                else
+                  echo "⚠ Dotfile $dotfile does NOT exist (may not be cloned yet)"
+                fi
+              done
+            else
+              echo "⚠ yadm repository is NOT initialized"
+            fi
+          else
+            echo "⚠ yadm is NOT installed"
+          fi
       
       - name: Verify Scripts Exist
         run: |

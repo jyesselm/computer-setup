@@ -34,7 +34,6 @@ packages:
   - starship
   
   # Language runtimes and tools
-  - python@3.11
   - node
   - go
   - rust
