@@ -545,6 +545,7 @@ jobs:
           fi
           
           echo "✓ Verification complete (some optional tools may be missing)"
+          } | tee logs/phase2-verification.log
       
       - name: Phase 3 - Shell Setup
         run: |
