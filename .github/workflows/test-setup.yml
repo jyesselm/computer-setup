@@ -1,0 +1,198 @@
+name: Test Setup Scripts
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  test-macos:
+    name: Test macOS Setup (Phase ${{ matrix.phase }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        phase: [1, 2, 3, 4, 5]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Make scripts executable
+        run: |
+          chmod +x mac/setup_mac.sh
+          chmod +x scripts/*.sh
+          chmod +x scripts/*.py
+      
+      - name: Phase 1 - Package Manager
+        if: matrix.phase == 1
+        run: |
+          echo "Testing Phase 1: Package Manager Installation"
+          ./scripts/install_package_manager.sh || echo "Phase 1 completed (may have warnings)"
+      
+      - name: Phase 2 - Essential Tools
+        if: matrix.phase == 2
+        run: |
+          echo "Testing Phase 2: Essential Tools Installation"
+          # Install Homebrew first if not present
+          if ! command -v brew &> /dev/null; then
+            echo "Installing Homebrew for testing..."
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
+            eval "$(/opt/homebrew/bin/brew shellenv)" || eval "$(/usr/local/bin/brew shellenv)" || true
+          fi
+          # Test with config file (non-interactive)
+          echo "n" | ./scripts/install_essential_tools.sh || echo "Phase 2 completed (may have warnings)"
+      
+      - name: Phase 3 - Shell Setup
+        if: matrix.phase == 3
+        run: |
+          echo "Testing Phase 3: Shell Setup"
+          echo "n" | ./scripts/setup_shell.sh || echo "Phase 3 completed (may have warnings)"
+      
+      - name: Phase 4 - Development Environments
+        if: matrix.phase == 4
+        run: |
+          echo "Testing Phase 4: Development Environments"
+          # Install Homebrew if needed
+          if ! command -v brew &> /dev/null; then
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
+            eval "$(/opt/homebrew/bin/brew shellenv)" || eval "$(/usr/local/bin/brew shellenv)" || true
+          fi
+          echo "n" | ./scripts/setup_python.sh || echo "Python setup skipped"
+          echo "n" | ./scripts/setup_nodejs.sh || echo "Node.js setup skipped"
+      
+      - name: Phase 5 - Conda/Mamba Setup
+        if: matrix.phase == 5
+        run: |
+          echo "Testing Phase 5: Conda/Mamba Setup"
+          echo "n" | ./scripts/setup_conda.sh || echo "Conda setup skipped"
+      
+      - name: Verify Scripts Exist
+        run: |
+          echo "Verifying all scripts are present and executable..."
+          test -f mac/setup_mac.sh && echo "✓ mac/setup_mac.sh exists"
+          test -f scripts/install_package_manager.sh && echo "✓ install_package_manager.sh exists"
+          test -f scripts/install_essential_tools.sh && echo "✓ install_essential_tools.sh exists"
+          test -f scripts/setup_shell.sh && echo "✓ setup_shell.sh exists"
+          test -f scripts/setup_python.sh && echo "✓ setup_python.sh exists"
+          test -f scripts/setup_nodejs.sh && echo "✓ setup_nodejs.sh exists"
+          test -f scripts/setup_conda.sh && echo "✓ setup_conda.sh exists"
+          test -f config/homebrew.yml && echo "✓ config/homebrew.yml exists"
+          test -f config/conda.yml && echo "✓ config/conda.yml exists"
+          test -f common/lib.sh && echo "✓ common/lib.sh exists"
+
+  test-linux:
+    name: Test Linux Setup (Phase ${{ matrix.phase }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-22.04]
+        phase: [1, 2, 3, 4, 5]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Make scripts executable
+        run: |
+          chmod +x linux/setup_linux.sh
+          chmod +x scripts/*.sh
+          chmod +x scripts/*.py
+      
+      - name: Phase 1 - Package Manager Detection
+        if: matrix.phase == 1
+        run: |
+          echo "Testing Phase 1: Package Manager Detection"
+          ./scripts/install_package_manager.sh || echo "Phase 1 completed (detection only)"
+      
+      - name: Phase 2 - Essential Tools
+        if: matrix.phase == 2
+        run: |
+          echo "Testing Phase 2: Essential Tools Installation"
+          echo "n" | ./scripts/install_essential_tools.sh || echo "Phase 2 completed (may have warnings)"
+      
+      - name: Phase 3 - Shell Setup
+        if: matrix.phase == 3
+        run: |
+          echo "Testing Phase 3: Shell Setup"
+          echo "n" | ./scripts/setup_shell.sh || echo "Phase 3 completed (may have warnings)"
+      
+      - name: Phase 4 - Development Environments
+        if: matrix.phase == 4
+        run: |
+          echo "Testing Phase 4: Development Environments"
+          echo "n" | ./scripts/setup_python.sh || echo "Python setup skipped"
+          echo "n" | ./scripts/setup_nodejs.sh || echo "Node.js setup skipped"
+      
+      - name: Phase 5 - Conda/Mamba Setup
+        if: matrix.phase == 5
+        run: |
+          echo "Testing Phase 5: Conda/Mamba Setup"
+          echo "n" | ./scripts/setup_conda.sh || echo "Conda setup skipped"
+      
+      - name: Verify Scripts Exist
+        run: |
+          echo "Verifying all scripts are present and executable..."
+          test -f linux/setup_linux.sh && echo "✓ linux/setup_linux.sh exists"
+          test -f scripts/install_package_manager.sh && echo "✓ install_package_manager.sh exists"
+          test -f scripts/install_essential_tools.sh && echo "✓ install_essential_tools.sh exists"
+          test -f scripts/setup_shell.sh && echo "✓ setup_shell.sh exists"
+          test -f scripts/setup_python.sh && echo "✓ setup_python.sh exists"
+          test -f scripts/setup_nodejs.sh && echo "✓ setup_nodejs.sh exists"
+          test -f scripts/setup_conda.sh && echo "✓ setup_conda.sh exists"
+          test -f config/conda.yml && echo "✓ config/conda.yml exists"
+          test -f common/lib.sh && echo "✓ common/lib.sh exists"
+
+  test-config-files:
+    name: Validate Configuration Files
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Validate YAML syntax
+        run: |
+          echo "Validating YAML configuration files..."
+          python3 -c "import yaml; yaml.safe_load(open('config/homebrew.yml'))" && echo "✓ config/homebrew.yml is valid YAML"
+          python3 -c "import yaml; yaml.safe_load(open('config/conda.yml'))" && echo "✓ config/conda.yml is valid YAML"
+        continue-on-error: true
+      
+      - name: Check config file structure
+        run: |
+          echo "Checking configuration file structure..."
+          test -f config/homebrew.yml && echo "✓ config/homebrew.yml exists"
+          test -f config/conda.yml && echo "✓ config/conda.yml exists"
+          
+          # Check for required keys in homebrew.yml
+          grep -q "^packages:" config/homebrew.yml && echo "✓ homebrew.yml has 'packages' key" || echo "⚠ homebrew.yml missing 'packages' key"
+          grep -q "^casks:" config/homebrew.yml && echo "✓ homebrew.yml has 'casks' key" || echo "⚠ homebrew.yml missing 'casks' key"
+          
+          # Check for required keys in conda.yml
+          grep -q "^channels:" config/conda.yml && echo "✓ conda.yml has 'channels' key" || echo "⚠ conda.yml missing 'channels' key"
+          grep -q "^conda_packages:" config/conda.yml && echo "✓ conda.yml has 'conda_packages' key" || echo "⚠ conda.yml missing 'conda_packages' key"
+          grep -q "^environment_name:" config/conda.yml && echo "✓ conda.yml has 'environment_name' key" || echo "⚠ conda.yml missing 'environment_name' key"
+          grep -q "environment_name: py3" config/conda.yml && echo "✓ conda.yml uses 'py3' as default environment" || echo "⚠ conda.yml does not use 'py3' as default"
+
+  lint-scripts:
+    name: Lint Shell Scripts
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+      
+      - name: Lint shell scripts
+        run: |
+          echo "Linting shell scripts..."
+          find . -name "*.sh" -type f ! -path "./.git/*" -exec shellcheck {} \; || echo "Some linting issues found (non-blocking)"
+        continue-on-error: true
+

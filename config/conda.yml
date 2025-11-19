@@ -1,0 +1,74 @@
+# Configuration file for package installations
+# This file defines packages to install via conda/mamba/minimamba
+
+# Conda/Mamba channels to use (in order of priority)
+channels:
+  - conda-forge
+  - defaults
+  - bioconda
+
+# Packages to install via conda/mamba
+conda_packages:
+  # Core scientific computing
+  - python=3.11
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - seaborn
+  - jupyter
+  - jupyterlab
+  - ipython
+  
+  # Data science and machine learning
+  - scikit-learn
+  - scikit-image
+  - statsmodels
+  - xarray
+  - dask
+  
+  # Bioinformatics (optional - uncomment if needed)
+  # - samtools
+  # - bcftools
+  # - bedtools
+  # - bwa
+  # - bowtie2
+  
+  # Development tools
+  - black
+  - flake8
+  - mypy
+  - pytest
+  - ipdb
+  
+  # Utilities
+  - git
+  - curl
+  - wget
+  - htop
+  - tree
+  - ripgrep
+  - fd
+  - bat
+  - exa
+  
+  # System tools
+  - zsh
+  - tmux
+  - vim
+
+# Pip packages (installed after conda packages)
+pip_packages:
+  - pip
+  - pipenv
+  - poetry
+  - virtualenv
+  - ipdb
+  - jupyter-contrib-nbextensions
+  - jupyterlab-git
+
+# Optional: Create a named environment
+# If specified, packages will be installed in this environment
+# If not specified, packages will be installed in base environment
+environment_name: py3  # Default environment name for Python packages
+

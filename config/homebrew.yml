@@ -1,0 +1,81 @@
+# Configuration file for Homebrew package installations (macOS only)
+# This file defines packages and casks to install via Homebrew
+
+# Regular Homebrew packages (formulae)
+packages:
+  # Version control
+  - git
+  - git-lfs
+  
+  # Dotfiles management
+  - yadm
+  
+  # Shell and terminal
+  - zsh
+  
+  # Text editors
+  - neovim
+  
+  # Network tools
+  - curl
+  - wget
+  
+  # Development tools
+  - jq
+  - yq
+  - tree
+  - htop
+  - ripgrep
+  - fd
+  - bat
+  - exa
+  - fzf
+  - zoxide
+  - starship
+  
+  # Language runtimes and tools
+  - python@3.11
+  - node
+  - go
+  - rust
+  
+# Homebrew Casks (GUI applications)
+casks:
+  # Terminal
+  - iterm2
+  
+  # Code editors
+  - cursor
+  
+  # Browsers
+  - google-chrome
+  
+  # Communication
+  - slack
+  - discord
+  - zoom
+  
+  # Media
+  - spotify
+  
+  # Productivity
+  - notion
+  - obsidian
+  - rectangle  # Window management
+  - alfred  # Spotlight alternative
+  
+  # Development tools
+  - docker
+  - postman
+  - dbeaver-community  # Database client
+  
+  # Utilities
+  - the-unarchiver
+  - appcleaner
+  - cheatsheet  # Keyboard shortcuts reference
+
+# Optional: Tap additional repositories
+taps:
+  - homebrew/cask-fonts
+  - homebrew/cask-versions
+
